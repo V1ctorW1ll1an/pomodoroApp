@@ -1,0 +1,2 @@
+link do Dan Abramov useInterval
+https://overreacted.io/making-setinterval-declarative-with-react-hooks/
