@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useInterval } from "../hooks/useInterval";
+import { secondsToTime } from "../utils/secondsToTime";
 import { Button } from "./button";
 import { Timer } from "./timer";
 
@@ -17,6 +18,15 @@ export function PomodoroTimer(props: IProps): JSX.Element {
     const [text, setText] = useState("");
     const [resting, setResting] = useState(false);
 
+    const generateCyclesFill = () => {
+        return new Array(props.cycles - 1).fill(true);
+    };
+
+    const [cycles, setCycles] = useState(generateCyclesFill());
+    const [fullWorkingTime, setFullWorkingTime] = useState(0);
+    const [completedCycles, setCompletedCycles] = useState(0);
+    const [numberOfPomodoro, setNumberOfPomodoro] = useState(0);
+
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const bellStart = require("../sounds/src_sounds_bell-start.mp3");
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -29,29 +39,73 @@ export function PomodoroTimer(props: IProps): JSX.Element {
         return !working && !resting ? "hidden" : "";
     };
 
-    const startWork = () => {
+    const workOrRest = () => {
+        return working ? "Trabalhando" : "Descansando";
+    };
+
+    const startWork = useCallback(() => {
         setTimeCounting(true);
         setWorking(true);
         setResting(false);
         setMainTime(props.pomodoroTimer);
         audioStartWorking.play();
-    };
+    }, [
+        setTimeCounting,
+        setWorking,
+        setResting,
+        setMainTime,
+        props.pomodoroTimer,
+    ]);
 
-    const startResting = (long: boolean) => {
-        setTimeCounting(true);
-        setWorking(false);
-        setResting(true);
+    const startResting = useCallback(
+        (long: boolean) => {
+            setTimeCounting(true);
+            setWorking(false);
+            setResting(true);
 
-        if (long) setMainTime(props.longRestTime);
-        else setMainTime(props.shortRestTime);
+            if (long) setMainTime(props.longRestTime);
+            else setMainTime(props.shortRestTime);
 
-        audioFinishWorking.play();
-    };
+            audioFinishWorking.play();
+        },
+        [
+            setTimeCounting,
+            setWorking,
+            setResting,
+            setMainTime,
+            props.longRestTime,
+            props.shortRestTime,
+        ],
+    );
 
     useEffect(() => {
         if (working) document.body.classList.add("working");
         if (resting) document.body.classList.remove("working");
-    }, [working]);
+        if (mainTime > 0) return;
+
+        if (working && cycles.length > 0) {
+            startResting(false);
+            cycles.pop();
+        } else if (working && cycles.length <= 0) {
+            startResting(false);
+            setCycles(generateCyclesFill());
+            setCompletedCycles(completedCycles + 1);
+        }
+
+        if (working) setNumberOfPomodoro(numberOfPomodoro + 1);
+        if (resting) startWork();
+    }, [
+        working,
+        resting,
+        mainTime,
+        cycles,
+        startResting,
+        setCycles,
+        startWork,
+        numberOfPomodoro,
+        props.cycles,
+        completedCycles,
+    ]);
 
     useEffect(() => {
         const theText = timeCounting ? "Pause work" : "Return to work";
@@ -61,13 +115,14 @@ export function PomodoroTimer(props: IProps): JSX.Element {
     useInterval(
         () => {
             setMainTime(mainTime - 1);
+            if (working) setFullWorkingTime(fullWorkingTime + 1);
         },
         timeCounting ? 1000 : null,
     );
 
     return (
         <div className="pomodoro">
-            <h2>You are: Working</h2>
+            <h2>Você está: {workOrRest()}</h2>
             <Timer mainTime={mainTime}></Timer>
             <div className="controls">
                 <Button text="Start Work" onClick={() => startWork()}></Button>
@@ -82,10 +137,9 @@ export function PomodoroTimer(props: IProps): JSX.Element {
                 ></Button>
             </div>
             <div className="details">
-                <p>testando</p>
-                <p>testando</p>
-                <p>testando</p>
-                <p>testando</p>
+                <p>Ciclos concluídos: {completedCycles}</p>
+                <p>Horas trabalhadas: {secondsToTime(fullWorkingTime)}</p>
+                <p>Pomodoros concluídos: {numberOfPomodoro}</p>
             </div>
         </div>
     );
